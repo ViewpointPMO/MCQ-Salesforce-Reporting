@@ -3,14 +3,29 @@ const FIELDS = 'Id, CaseNumber, Type, Support_Product_Portal__c, Module_Portal__
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Salesforce')
-    .addItem('Run Query', 'updateCases')
+    .addItem('Update All Sheets', 'updateCases')
+    .addItem('Update Single Sheet (Prompt)', 'promptAndUpdate')
+    .addItem('Compile Sheets for Domo', 'parseSettingsAndUpdateSheets')
     .addToUi();
+}
+
+function promptAndUpdate() {
+  const ui = SpreadsheetApp.getUi();
+  const result = ui.prompt('Enter Parent Sheet Name', 'Please input the parent sheet name you wish to update:', ui.ButtonSet.OK_CANCEL);
+  
+  if (result.getSelectedButton() === ui.Button.OK) {
+    const parentSheetName = result.getResponseText();
+    refreshToken();
+    makeRequestSoql(parentSheetName);  // <-- Pass the user input to the function.
+    setReportDateRange();
+  }
 }
 
 function updateCases() {
   refreshToken();
   makeRequestSoql();
   setReportDateRange();
+  updateTargetSheets();
 }
 
 function refreshToken() {
@@ -74,7 +89,7 @@ function getPastDate() {
   return `${year}-${formattedMonth}-01T00:00:00Z`;
 }
 
-function makeRequestSoql() {
+function makeRequestSoql(parentSheetFilter = "") {
   const ss = SpreadsheetApp.getActive();
   const settingsSheet = ss.getSheetByName('Settings');
   const dataRange = settingsSheet.getDataRange().getValues();
@@ -88,6 +103,10 @@ function makeRequestSoql() {
     const types = rowData[2];
     const modulePortal = rowData[3];
     const shouldUpdate = rowData[4];
+
+    if (parentSheetFilter && parentSheetFilter !== parentSheetName) {
+      continue;  // If a filter is provided and it doesn't match the current parentSheetName, skip this iteration
+    }
 
     if (shouldUpdate !== "Yes") {
       continue;  // Skip the current iteration and move to the next row
@@ -194,6 +213,8 @@ function setReportDateRange() {
     let currentDate = new Date();
     let startDate = new Date(currentDate.getFullYear() - 2, currentDate.getMonth() - 1, 1); // 2 years and 1 month ago from the current date.
     let endDate = new Date(); // Current date.
+
+    settingsSheet.getRange('B1').setValue(endDate);
     
     // Reset the hours, minutes, seconds, and milliseconds
     startDate.setHours(0, 0, 0, 0);
@@ -225,4 +246,62 @@ function getMonthStartDates(startDate, endDate) {
     }
     
     return dates;
+}
+
+function parseSettingsAndUpdateSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const settingsSheet = ss.getSheetByName('Settings');
+  const lastRow = settingsSheet.getLastRow();
+  const settingsData = settingsSheet.getRange(4, 1, lastRow - 3, 6).getValues();
+
+  const processedSheets = new Set();
+  
+  const destId = "1am7iGGlqqGsKyzTqkvLsbSklwiZrq0FWDnd7lEspeHs"; // Destination Google Sheet's ID
+  const destSS = SpreadsheetApp.openById(destId);
+  
+  const hasCleared = {
+    "SCR_01": false,
+    "SCR_02": false
+  }; // Track if a sheet has been cleared
+  
+  settingsData.forEach(row => {
+    const sourceSheetName = row[0];
+    const domoSetting = row[5];
+
+    if (!processedSheets.has(sourceSheetName)) {
+      switch (domoSetting) {
+        case "Yes, SCR_01":
+          addDataToTargetSheet(ss, sourceSheetName, "SCR_01", destSS, hasCleared);
+          processedSheets.add(sourceSheetName);
+          Logger.log(`${sourceSheetName} has been added to SCR_01 in the destination sheet`);
+          break;
+
+        case "Yes, SCR_02":
+          addDataToTargetSheet(ss, sourceSheetName, "SCR_02", destSS, hasCleared);
+          processedSheets.add(sourceSheetName);
+          Logger.log(`${sourceSheetName} has been added to SCR_02 in the destination sheet`);
+          break;
+      }
+    }
+  });
+}
+
+function addDataToTargetSheet(ss, sourceSheetName, targetSheetName, destSS, hasCleared) {
+  const sourceSheet = ss.getSheetByName(sourceSheetName);
+  const targetSheet = destSS.getSheetByName(targetSheetName); // Use destSS to access the target sheet in the destination Google Sheet
+  
+  if (!sourceSheet || !targetSheet) {
+    Logger.log(`Either ${sourceSheetName} or ${targetSheetName} does not exist. Skipping.`);
+    return;
+  }
+
+  // Clear the target sheet for the first time, except the header row
+  if (!hasCleared[targetSheetName]) {
+    targetSheet.getRange(2, 1, targetSheet.getMaxRows() - 1, targetSheet.getMaxColumns()).clear();
+    hasCleared[targetSheetName] = true;
+  }
+
+  const sourceData = sourceSheet.getRange(2, 1, sourceSheet.getLastRow() - 1, sourceSheet.getLastColumn()).getValues();
+  const targetLastRow = targetSheet.getLastRow();
+  targetSheet.getRange(targetLastRow + 1, 1, sourceData.length, sourceData[0].length).setValues(sourceData);
 }
