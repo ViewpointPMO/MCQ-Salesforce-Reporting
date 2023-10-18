@@ -25,7 +25,6 @@ function updateCases() {
   refreshToken();
   makeRequestSoql();
   setReportDateRange();
-  updateTargetSheets();
 }
 
 function refreshToken() {
@@ -101,8 +100,9 @@ function makeRequestSoql(parentSheetFilter = "") {
     const parentSheetName = rowData[0];
     const supportProduct = rowData[1];
     const types = rowData[2];
-    const modulePortal = rowData[3];
-    const shouldUpdate = rowData[4];
+    const modulePortalInclude = rowData[3];
+    const modulePortalExclude = rowData[4];
+    const shouldUpdate = rowData[5];
 
     if (parentSheetFilter && parentSheetFilter !== parentSheetName) {
       continue;  // If a filter is provided and it doesn't match the current parentSheetName, skip this iteration
@@ -121,8 +121,15 @@ function makeRequestSoql(parentSheetFilter = "") {
       const typeConditions = typeList.map(type => `Type = '${type}'`).join(" OR ");
       whereClause += ` AND (${typeConditions})`;
     }
-    if (modulePortal) {
-      whereClause += ` AND Module_Portal__c = '${modulePortal}'`;
+
+    if (modulePortalInclude) {
+      const includedModules = modulePortalInclude.split(",").map(value => `Module_Portal__c = '${value.trim()}'`).join(" OR ");
+      whereClause += ` AND (${includedModules})`;
+    }
+
+    if (modulePortalExclude) {
+      const excludedModules = modulePortalExclude.split(",").map(value => `Module_Portal__c != '${value.trim()}'`).join(" AND ");
+      whereClause += ` AND (${excludedModules})`;
     }
 
     const soqlTemplate = `SELECT ${FIELDS} FROM Case ${whereClause}`;
@@ -161,7 +168,8 @@ function makeRequestSoql(parentSheetFilter = "") {
       if (resultArray.length > 1) {
         const lastRow = responseSheet.getLastRow();
         responseSheet.getRange(lastRow + 1, 1, resultArray.length - 1, resultArray[0].length).setValues(resultArray.slice(1));
-        settingsSheet.getRange(i + 1, 7).setValue(responseData.totalSize + 0);
+        settingsSheet.getRange(i + 1, 8).setValue(responseData.totalSize);
+        Logger.log(`${resultArray.length - 1} results added to ${parentSheetName} for (Product: ${supportProduct})`);
       } else {
         Logger.log(`No results to write for sheet ${parentSheetName} - (Product: ${supportProduct})`);
       }
@@ -252,7 +260,7 @@ function parseSettingsAndUpdateSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const settingsSheet = ss.getSheetByName('Settings');
   const lastRow = settingsSheet.getLastRow();
-  const settingsData = settingsSheet.getRange(4, 1, lastRow - 3, 6).getValues();
+  const settingsData = settingsSheet.getRange(4, 1, lastRow - 3, 7).getValues();
 
   const processedSheets = new Set();
   
@@ -266,7 +274,7 @@ function parseSettingsAndUpdateSheets() {
   
   settingsData.forEach(row => {
     const sourceSheetName = row[0];
-    const domoSetting = row[5];
+    const domoSetting = row[6];
 
     if (!processedSheets.has(sourceSheetName)) {
       switch (domoSetting) {
