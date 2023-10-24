@@ -277,7 +277,7 @@ function compileSheetsToDomo() {
 
   const processedSheets = new Set();
   
-  const destId = "1am7iGGlqqGsKyzTqkvLsbSklwiZrq0FWDnd7lEspeHs";
+  const destId = PropertiesService.getScriptProperties().getProperty("domoDestSheetID");
   const destSS = SpreadsheetApp.openById(destId);
   
   const hasCleared = {
