@@ -1,6 +1,6 @@
 # GAS Script for Salesforce Integration
 
-This Google App Script (GAS) allows you to interact with Salesforce using OAuth2.0. The GAS script fetches data from Salesforce based on given criteria and updates Google Sheets accordingly.
+This Google App Script (GAS) allows you to interact with Salesforce using OAuth2.0. The GAS script fetches data from Salesforce based on criteria from Google Sheets and updates another Google Sheet accordingly.
 
 ## Setup and Configuration
 
@@ -24,8 +24,7 @@ This Google App Script (GAS) allows you to interact with Salesforce using OAuth2
 3. **Salesforce Authorization in GAS**
    - Inside the GAS editor:
      - Add `Oauth2` library and `Sheets` service
-       ![image](https://github.com/ViewpointPMO/MCQ-Salesforce-Reporting/assets/106272342/5a282352-37b6-42b8-b8b8-7a0790bc5ce7)
-     - Enter the Consumer Key and Secret from the Salesforce Connected App and set up the necessary script and user properties, especially `SFClientID` and `SFClientSecret`.
+     - Enter the Consumer Key and Secret from the Salesforce Connected App and set up the necessary script and user properties (`SFClientID` and `SFClientSecret`, respectively).
      - Run the function `getSfService`.
      - Then run the function `showSidebar`.
    - **Note**: Before logging in, ensure you've cleared your cookies. This ensures you log into the actual production Salesforce environment and not the developer environment using your real Salesforce account.
